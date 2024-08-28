@@ -4,3 +4,7 @@
 - Clean original project
 - Transform client as non singleton
 - Add authentication callback
+
+## 0.0.2
+
+- Add github action auto publish
