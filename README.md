@@ -1,6 +1,8 @@
-# Flutter Client SSE
+# Dart SSE
 
 Dart package to help consume Server Sent Events
+
+Forked from (https://github.com/pratikbaid3/flutter_client_sse)[https://github.com/pratikbaid3/flutter_client_sse]
 
 ### Features:
 * Consumes server sent events
@@ -8,17 +10,6 @@ Dart package to help consume Server Sent Events
 
 ## Getting Started
 
-
-### Import
-Add the following import in the ```pubspec.yaml``` file
-```yaml
-client_sse:
-    git:
-      url: https://github.com/pratikbaid3/flutter_client_sse
-      path:
-```
-
-### Example
 ```dart
 ///GET REQUEST
 SSEClient.subscribeToSSE(
