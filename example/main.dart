@@ -3,17 +3,17 @@
 import 'package:dart_sse/dart_sse.dart';
 
 void main() {
-  ///GET REQUEST
-  SSEClient.subscribeToSSE(
-    method: SSERequestType.get,
-    url: 'http://localhost:3000/sse',
-    header: {
-      'Cookie':
-          'jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6InRlc3QiLCJpYXQiOjE2NDMyMTAyMzEsImV4cCI6MTY0MzgxNTAzMX0.U0aCAM2fKE1OVnGFbgAU_UVBvNwOMMquvPY8QaLD138; Path=/; Expires=Wed, 02 Feb 2022 15:17:11 GMT; HttpOnly; SameSite=Strict',
-      'Accept': 'text/event-stream',
-      'Cache-Control': 'no-cache',
+  // GET REQUEST
+
+  final SSEClient getClient = SSEClient(
+    authenticate: (request) async {
+      request.headers['Cookie'] =
+          'jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6InRlc3QiLCJpYXQiOjE2NDMyMTAyMzEsImV4cCI6MTY0MzgxNTAzMX0.U0aCAM2fKE1OVnGFbgAU_UVBvNwOMMquvPY8QaLD138; Path=/; Expires=Wed, 02 Feb 2022 15:17:11 GMT; HttpOnly; SameSite=Strict';
+      return request;
     },
-  ).listen(
+  );
+
+  getClient.listen(
     (event) {
       print('Id: ${event.id ?? ''}');
       print('Event: ${event.event ?? ''}');
@@ -21,14 +21,29 @@ void main() {
     },
   );
 
-  ///POST REQUEST
-  SSEClient.subscribeToSSE(
+  getClient.subscribeToSSE(
     method: SSERequestType.get,
+    url: 'http://localhost:12000/sse',
+    headers: {
+      'Accept': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+    },
+  );
+
+  ///POST REQUEST
+  final SSEClient postClient = SSEClient(
+    authenticate: (request) async {
+      request.headers['Cookie'] =
+          'jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6InRlc3QiLCJpYXQiOjE2NDMyMTAyMzEsImV4cCI6MTY0MzgxNTAzMX0.U0aCAM2fKE1OVnGFbgAU_UVBvNwOMMquvPY8QaLD138; Path=/; Expires=Wed, 02 Feb 2022 15:17:11 GMT; HttpOnly; SameSite=Strict';
+      return request;
+    },
+  );
+
+  postClient.subscribeToSSE(
+    method: SSERequestType.post,
     url:
-        'http://192.168.1.2:3000/api/activity-stream?historySnapshot=FIVE_MINUTE',
-    header: {
-      'Cookie':
-          'jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6InRlc3QiLCJpYXQiOjE2NDMyMTAyMzEsImV4cCI6MTY0MzgxNTAzMX0.U0aCAM2fKE1OVnGFbgAU_UVBvNwOMMquvPY8QaLD138; Path=/; Expires=Wed, 02 Feb 2022 15:17:11 GMT; HttpOnly; SameSite=Strict',
+        'http://localhost:12000/api/activity-stream?historySnapshot=FIVE_MINUTE',
+    headers: {
       'Accept': 'text/event-stream',
       'Cache-Control': 'no-cache',
     },

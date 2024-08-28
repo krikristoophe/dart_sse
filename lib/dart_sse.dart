@@ -17,76 +17,91 @@ enum SSERequestType {
   String get method => name.toUpperCase();
 }
 
+/// Stream listen callback type
+typedef StreamListenCallback<T> = StreamSubscription<T> Function(
+  void Function(T event)? onData, {
+  Function? onError,
+  void Function()? onDone,
+  bool? cancelOnError,
+});
+
 /// A client for subscribing to Server-Sent Events (SSE).
 class SSEClient {
-  static http.Client _client = http.Client();
+  ///
+  SSEClient({
+    this.authenticate,
+  });
+  http.Client _client = http.Client();
+  final StreamController<SSEModel> _streamController =
+      StreamController.broadcast();
+
+  /// Authenticate request callback
+  final Future<http.Request> Function(http.Request request)? authenticate;
+
+  /// Listen stream
+  StreamListenCallback<SSEModel> get listen => _streamController.stream.listen;
 
   /// Retry the SSE connection after a delay.
   ///
   /// [method] is the request method (GET or POST).
   /// [url] is the URL of the SSE endpoint.
-  /// [header] is a map of request headers.
+  /// [headers] is a map of request headers.
   /// [body] is an optional request body for POST requests.
-  /// [streamController] is required to persist
-  /// the stream from the old connection
-  static void _retryConnection({
+  void _retryConnection({
     required SSERequestType method,
     required String url,
-    required Map<String, String> header,
-    required StreamController<SSEModel> streamController,
+    required Map<String, String> headers,
     Map<String, dynamic>? body,
   }) {
     Future.delayed(const Duration(seconds: 5), () {
+      _resetHttpClient();
       subscribeToSSE(
         method: method,
         url: url,
-        header: header,
+        headers: headers,
         body: body,
-        oldStreamController: streamController,
       );
     });
   }
+
+  Future<http.Request> Function(http.Request request)
+      get _authenticationCallback =>
+          authenticate ?? (request) => Future.value(request);
 
   /// Subscribe to Server-Sent Events.
   ///
   /// [method] is the request method (GET or POST).
   /// [url] is the URL of the SSE endpoint.
-  /// [header] is a map of request headers.
+  /// [headers] is a map of request headers.
   /// [body] is an optional request body for POST requests.
   ///
   /// Returns a [Stream] of [SSEModel] representing the SSE events.
-  static Stream<SSEModel> subscribeToSSE({
+  Stream<SSEModel> subscribeToSSE({
     required SSERequestType method,
     required String url,
-    required Map<String, String> header,
-    StreamController<SSEModel>? oldStreamController,
+    required Map<String, String> headers,
     Map<String, dynamic>? body,
   }) {
-    StreamController<SSEModel> streamController = StreamController();
-    if (oldStreamController != null) {
-      streamController = oldStreamController;
-    }
     final lineRegex = RegExp(r'^([^:]*)(?::)?(?: )?(.*)?$');
-    var currentSSEModel = SSEModel(data: '', id: '', event: '');
-    while (true) {
-      try {
-        _client = http.Client();
-        final request = http.Request(
-          method.method,
-          Uri.parse(url),
-        );
+    SSEModel currentSSEModel = SSEModel(data: '', id: '', event: '');
 
-        /// Adding headers to the request
-        header.forEach((key, value) {
-          request.headers[key] = value;
-        });
+    try {
+      final http.Request request = http.Request(
+        method.method,
+        Uri.parse(url),
+      );
 
-        /// Adding body to the request if exists
-        if (body != null) {
-          request.body = jsonEncode(body);
-        }
+      /// Adding headers to the request
+      request.headers.addAll(headers);
 
-        final Future<http.StreamedResponse> response = _client.send(request);
+      /// Adding body to the request if exists
+      if (body != null) {
+        request.body = jsonEncode(body);
+      }
+
+      _authenticationCallback(request).then((authenticatedRequest) {
+        final Future<http.StreamedResponse> response =
+            _client.send(authenticatedRequest);
 
         /// Listening to the response as a stream
         response.asStream().listen(
@@ -100,7 +115,7 @@ class SSEClient {
                 if (dataLine.isEmpty) {
                   /// This means that the complete event set has been read.
                   /// We then add the event to the stream
-                  streamController.add(currentSSEModel);
+                  _streamController.add(currentSSEModel);
                   currentSSEModel = SSEModel(data: '', id: '', event: '');
                   return;
                 }
@@ -111,13 +126,11 @@ class SSEClient {
                 if (field!.isEmpty) {
                   return;
                 }
-                var value = '';
+                late final String value;
                 if (field == 'data') {
                   // If the field is data,
                   // we get the data through the substring
-                  value = dataLine.substring(
-                    5,
-                  );
+                  value = dataLine.substring(5);
                 } else {
                   value = match.group(2) ?? '';
                 }
@@ -135,8 +148,7 @@ class SSEClient {
                     _retryConnection(
                       method: method,
                       url: url,
-                      header: header,
-                      streamController: streamController,
+                      headers: headers,
                     );
                 }
               },
@@ -144,9 +156,8 @@ class SSEClient {
                 _retryConnection(
                   method: method,
                   url: url,
-                  header: header,
+                  headers: headers,
                   body: body,
-                  streamController: streamController,
                 );
               },
             );
@@ -155,27 +166,32 @@ class SSEClient {
             _retryConnection(
               method: method,
               url: url,
-              header: header,
+              headers: headers,
               body: body,
-              streamController: streamController,
             );
           },
         );
-      } catch (e) {
-        _retryConnection(
-          method: method,
-          url: url,
-          header: header,
-          body: body,
-          streamController: streamController,
-        );
-      }
-      return streamController.stream;
+      });
+    } catch (e) {
+      _retryConnection(
+        method: method,
+        url: url,
+        headers: headers,
+        body: body,
+      );
     }
+    return _streamController.stream;
   }
 
-  /// Unsubscribe from the SSE.
-  static void unsubscribeFromSSE() {
+  /// Close client
+  /// Client cant be used after close
+  Future<void> close() async {
+    _resetHttpClient();
+    await _streamController.close();
+  }
+
+  void _resetHttpClient() {
     _client.close();
+    _client = http.Client();
   }
 }
